@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<data>
+  <record>
+    <name>John Doe</name>
+    <age>25</age>
+    <city>New York</city>
+    <email>john@example.com</email>
+  </record>
+  <record>
+    <name>Jane Smith</name>
+    <age>30</age>
+    <city>Los Angeles</city>
+    <email>jane@example.com</email>
+  </record>
+</data>
