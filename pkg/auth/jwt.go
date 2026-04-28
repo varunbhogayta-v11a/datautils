@@ -10,16 +10,15 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/improwised/datautil/pkg/db"
 	"github.com/improwised/datautil/pkg/models"
 )
 
 var (
-	ErrInvalidCredentials = errors.New("invalid credentials")
-	ErrUserExists         = errors.New("user already exists")
-	ErrUserNotFound       = errors.New("user not found")
-	ErrInvalidToken       = errors.New("invalid token")
-	ErrUnauthorized       = errors.New("unauthorized")
+	ErrInvalidCredentials  = errors.New("invalid credentials")
+	ErrUserExists          = errors.New("user already exists")
+	ErrUserNotFound        = errors.New("user not found")
+	ErrInvalidToken        = errors.New("invalid token")
+	ErrUnauthorized        = errors.New("unauthorized")
 )
 
 type Claims struct {
@@ -93,13 +92,39 @@ func CheckPassword(password, hash string) bool {
 	return err == nil
 }
 
+var (
+	userRepo models.UserRepository
+	logRepo models.OperationLogRepository
+)
+
+func UserRepository() models.UserRepository {
+	return userRepo
+}
+
+func SetUserRepository(repo models.UserRepository) {
+	userRepo = repo
+}
+
+func OperationLogRepository() models.OperationLogRepository {
+	return logRepo
+}
+
+func SetOperationLogRepository(repo models.OperationLogRepository) {
+	logRepo = repo
+}
+
 func Register(username, email, password string) (*models.User, error) {
-	var count int
-	err := db.DB.QueryRow("SELECT COUNT(*) FROM users WHERE email = ? OR username = ?", email, username).Scan(&count)
-	if err != nil {
-		return nil, err
+	repo := userRepo
+	if repo == nil {
+		return nil, fmt.Errorf("user repository not configured")
 	}
-	if count > 0 {
+
+	existing, err := repo.GetByEmail(email)
+	if err == nil && existing != nil {
+		return nil, ErrUserExists
+	}
+	existing, err = repo.GetByUsername(username)
+	if err == nil && existing != nil {
 		return nil, ErrUserExists
 	}
 
@@ -108,17 +133,7 @@ func Register(username, email, password string) (*models.User, error) {
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	result, err := db.DB.Exec(
-		"INSERT INTO users (username, email, password, role, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
-		username, email, hashedPassword, "user", true,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create user: %w", err)
-	}
-
-	id, _ := result.LastInsertId()
-	return &models.User{
-		ID:        uint(id),
+	user := &models.User{
 		Username:  username,
 		Email:     email,
 		Password:  hashedPassword,
@@ -126,21 +141,20 @@ func Register(username, email, password string) (*models.User, error) {
 		Active:    true,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
-	}, nil
+	}
+
+	return repo.Create(user)
 }
 
 func Login(email, password string) (*models.User, string, error) {
-	var user models.User
-	err := db.DB.QueryRow(
-		"SELECT id, username, email, password, role, active, created_at, updated_at FROM users WHERE email = ?",
-		email,
-	).Scan(&user.ID, &user.Username, &user.Email, &user.Password, &user.Role, &user.Active, &user.CreatedAt, &user.UpdatedAt)
+	repo := userRepo
+	if repo == nil {
+		return nil, "", fmt.Errorf("user repository not configured")
+	}
 
+	user, err := repo.GetByEmail(email)
 	if err != nil {
-		if strings.Contains(err.Error(), "no rows") {
-			return nil, "", ErrInvalidCredentials
-		}
-		return nil, "", err
+		return nil, "", ErrInvalidCredentials
 	}
 
 	if !user.Active {
@@ -151,29 +165,26 @@ func Login(email, password string) (*models.User, string, error) {
 		return nil, "", ErrInvalidCredentials
 	}
 
-	jwt := NewJWT()
-	token, err := jwt.GenerateToken(&user)
+	jwtObj := NewJWT()
+	token, err := jwtObj.GenerateToken(user)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to generate token: %w", err)
 	}
 
-	return &user, token, nil
+	return user, token, nil
 }
 
 func GetUserByID(id uint) (*models.User, error) {
-	var user models.User
-	err := db.DB.QueryRow(
-		"SELECT id, username, email, password, role, active, created_at, updated_at FROM users WHERE id = ?",
-		id,
-	).Scan(&user.ID, &user.Username, &user.Email, &user.Password, &user.Role, &user.Active, &user.CreatedAt, &user.UpdatedAt)
-
-	if err != nil {
-		if strings.Contains(err.Error(), "no rows") {
-			return nil, ErrUserNotFound
-		}
-		return nil, err
+	repo := userRepo
+	if repo == nil {
+		return nil, fmt.Errorf("user repository not configured")
 	}
-	return &user, nil
+
+	user, err := repo.GetByID(id)
+	if err != nil {
+		return nil, ErrUserNotFound
+	}
+	return user, nil
 }
 
 func ParseTokenFromHeader(authHeader string) (string, error) {
@@ -190,8 +201,17 @@ func ParseTokenFromHeader(authHeader string) (string, error) {
 }
 
 func LogOperation(userID uint, operation, inputFile, outputFile, details string) {
-	_, _ = db.DB.Exec(
-		"INSERT INTO operation_logs (user_id, operation, input_file, output_file, details, created_at) VALUES (?, ?, ?, ?, ?, datetime('now'))",
-		userID, operation, inputFile, outputFile, details,
-	)
+	repo := logRepo
+	if repo == nil {
+		return
+	}
+
+	logEntry := &models.OperationLog{
+		UserID:     userID,
+		Operation:  operation,
+		InputFile:  inputFile,
+		OutputFile: outputFile,
+		Details:    details,
+	}
+	_, _ = repo.Create(logEntry)
 }

@@ -1,56 +1,8 @@
-# DataUtil - Dataset Processing CLI Tool
+# DataUtil - CLI Tool for Automated Dataset Processing
 
-A powerful Command-Line Interface tool for processing datasets with filtering, transformation, validation, import/export, and full CRUD database operations with role-based access control.
+## Overview
 
----
-
-## Architecture Overview
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                                DataUtil CLI                                  │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                        Commands Layer (cmd/)                         │    │
-│  │                                                                       │    │
-│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌─────────────┐ │    │
-│  │  │ Filter  │ │Transform│ │Validate │ │  Import  │ │ CRUD Ops   │ │    │
-│  │  └────┬────┘ └────┬────┘ └────┬────┘ └─────┬────┘ └──────┬──────┘ │    │
-│  │       │         │          │            │             │        │    │
-│  │  ┌────┴────┐┌───┴────┐┌───┴────┐ ┌────┴─────┐ ┌──────┴──────┐  │    │
-│  │  │Query/Sel│ │Insert │ │ Update │ │ Delete   │ │ Export/CSV │  │    │
-│  │  └─────────┘ └───────┘ └────────┘ └──────────┘ └────────────┘  │    │
-│  └──────────────────────────┬──────────────────────────────────────┘    │
-│                              │                                              │
-│  ┌──────────────────────────┴──────────────────────────────────────┐    │
-│  │                    Auth & Middleware Layer                        │    │
-│  │  ┌────────────────┐  ┌──────────────────┐  ┌────────────────┐   │    │
-│  │  │ JWT Token Auth  │  │ Role-Based Access │  │  Operations   │   │    │
-│  │  │   (login/reg)  │  │   (admin/user)    │  │     Log       │   │    │
-│  │  └───────┬────────┘  └────────┬───────────┘  └───────┬────────┘   │    │
-│  └──────────┼───────────────────┼──────────────────────┼────────────┘    │
-│             │                   │                      │                 │
-│  ┌──────────┴───────────────────┴──────────────────────┴────────────┐    │
-│  │                         Data Layer (pkg/)                          │    │
-│  │                                                                      │    │
-│  │  ┌─────────────────┐  ┌─────────────────┐  ┌──────────────────┐   │    │
-│  │  │    pkg/data     │  │   pkg/models    │  │   pkg/auth       │   │    │
-│  │  │  CSV/JSON/XML   │  │   User/Role     │  │   JWT/JWT        │   │    │
-│  │  │  Excel Reader   │  │   Permissions   │  │   Hash/Verify    │   │    │
-│  │  └────────┬────────┘  └────────┬────────┘  └────────┬───────────┘   │    │
-│  │           │                  │                    │               │    │
-│  │  ┌────────┴──────────────────┴────────────────────┴───────────┐   │    │
-│  │  │                      pkg/db                              │   │    │
-│  │  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────┐   │   │    │
-│  │  │  │   SQLite    │  │ PostgreSQL  │  │      MySQL      │   │   │    │
-│  │  │  │  (default)  │  │  (pgx/v5)   │  │                 │   │   │    │
-│  │  │  └─────────────┘  └─────────────┘  └─────────────────┘   │   │    │
-│  │  └───────────────────────────────────────────────────────────┘   │    │
-│  └───────────────────────────────────────────────────────────────────┘    │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+DataUtil is a Go-based CLI tool for dataset processing (filtering, transforming, validating, exporting). It supports CSV, JSON, XML, and Excel formats with PostgreSQL/SQLite database persistence and JWT-based authentication.
 
 ---
 
@@ -58,266 +10,211 @@ A powerful Command-Line Interface tool for processing datasets with filtering, t
 
 ```
 datautil/
-├── main.go                    # Entry point
-├── cmd/                       # CLI commands
-│   ├── root.go              # Root command & config
-│   ├── auth.go              # init-db, register, login, token handling
-│   ├── filter.go            # Filter rows/columns from datasets
-│   ├── transform.go         # Add/remove/rename columns
-│   ├── validate.go          # Schema validation
-│   ├── export.go            # Export to different formats
-│   ├── import.go            # CSV import to database
-│   ├── query.go             # SQL SELECT queries
-│   ├── crud.go              # Insert/Update/Delete operations
-│   ├── users.go             # List users, view logs
-│   └── interactive.go       # Interactive mode
-├── pkg/
-│   ├── data/
-│   │   └── reader.go        # File readers (CSV, JSON, XML, Excel)
-│   ├── models/
-│   │   └── user.go          # User, Role, OperationLog models
-│   ├── auth/
-│   │   └── jwt.go          # JWT token generation & validation
-│   └── db/
-│       └── config.go        # Multi-database configuration
-├── tests/
-│   └── test_data.*          # Sample test files
-├── Dockerfile
-├── go.mod
-├── go.sum
-└── README.md
+├── cmd/              - CLI commands (12 files)
+├── pkg/              - Core packages
+│   ├── auth/         - JWT authentication
+│   ├── data/         - Dataset reader
+│   ├── db/           - Database config
+│   ├── models/       - Data models
+│   ├── operations/    - Filter operations
+│   └── repo/          - Repository
+└── tests/            - Test files
 ```
 
 ---
 
-## Features
+## Key Features
 
-### 1. Data Operations
-| Command | Description |
-|---------|-------------|
-| **filter** | Filter rows by conditions, select specific columns |
-| **transform** | Add, remove, rename columns in datasets |
-| **validate** | Validate schema, check required columns & types |
-| **export** | Convert between CSV, JSON, XML formats |
-
-### 2. Database CRUD Operations
-| Command | Description |
-|---------|-------------|
-| **query** | Execute SELECT queries |
-| **insert** | Insert rows into table |
-| **update** | Update rows in table |
-| **delete** | Delete rows from table |
-| **import** | Import CSV data to database |
-
-### 3. User Management
-| Command | Description |
-|---------|-------------|
-| **init-db** | Initialize database & create tables |
-| **register** | Register new user account |
-| **login** | Get JWT authentication token |
-| **users** | List all users (admin only) |
-| **logs** | View operation history |
-
-### 4. Authentication & Security
-- JWT-based authentication
-- Role-based access control (RBAC)
-- Password hashing with bcrypt
-- Operation logging for audit
+- **CLI Commands**: filter, transform, validate, export, import, query, users, CRUD operations
+- **HTTP API Server**: RESTful endpoints with Swagger UI
+- **Authentication**: JWT-based auth with register/login
+- **File Formats**: CSV, JSON, XML, Excel
+- **Database**: PostgreSQL & SQLite via GORM
 
 ---
 
-## Role-Based Access Control
+## Dependencies
 
-```
-                    ┌─────────────────┐
-                    │   User Roles    │
-                    └────────┬────────┘
-                             │
-        ┌────────────────────┼────────────────────┐
-        │                    │                    │
-        ▼                    ▼                    ▼
-┌───────────────┐   ┌─────────────────┐   ┌───────────────┐
-│     ADMIN    │   │      USER      │   │     GUEST    │
-├───────────────┤   ├─────────────────┤   ├───────────────┤
-│ ✓ Read        │   │ ✓ Read          │   │ ✓ Read        │
-│ ✓ Write       │   │ ✓ Write         │   │ ✗ Write       │
-│ ✓ Delete      │   │ ✗ Delete        │   │ ✗ Delete      │
-│ ✓ Admin       │   │ ✗ Admin         │   │ ✗ Admin       │
-└───────────────┘   └─────────────────┘   └───────────────┘
-```
-
-### Permissions by Role
-| Action | Admin | User | Guest |
-|--------|-------|------|-------|
-| filter/transform/validate | ✓ | ✓ | ✗ |
-| query/select | ✓ | ✓ | ✓ |
-| insert | ✓ | ✓ | ✗ |
-| update | ✓ | ✓ | ✗ |
-| delete | ✓ | ✗ | ✗ |
-| user management | ✓ | ✗ | ✗ |
+| Package | Version | Purpose |
+|---------|---------|---------|
+| spf13/cobra | 1.8.0 | CLI framework |
+| spf13/viper | 1.18.2 | Config management |
+| gorm.io/gorm | 1.31.1 | ORM |
+| gorm.io/driver/postgres | 1.6.0 | PostgreSQL driver |
+| gorm.io/driver/sqlite | 1.6.0 | SQLite driver |
+| golang-jwt/jwt/v5 | 5.3.1 | JWT auth |
+| xuri/excelize/v2 | 2.8.0 | Excel handling |
 
 ---
 
-## Supported Databases
+## CLI Commands
 
-| Driver | Environment Variables |
-|--------|----------------------|
-| **SQLite** (default) | `DB_DRIVER=sqlite3` |
-| **PostgreSQL** | `DB_DRIVER=postgres` |
-| **MySQL** | `DB_DRIVER=mysql` |
-
-### Database Connection Config
-```bash
-export DB_HOST=localhost       # Database host
-export DB_PORT=5432            # Database port
-export DB_USER=postgres        # Database user
-export DB_PASSWORD=secret      # Database password
-export DB_NAME=datautil        # Database name
-export DB_DRIVER=sqlite3       # sqlite3, postgres, mysql
-```
+| Command | Description | Example |
+|---------|-------------|---------|
+| `filter` | Filter dataset rows | `./datautil filter --input data.csv --where "age > 25"` |
+| `transform` | Transform dataset | `./datautil transform --input data.csv --add city=NYC` |
+| `validate` | Validate dataset | `./datautil validate --input data.csv --required name,age` |
+| `export` | Export to format | `./datautil export --input data.csv --to json` |
+| `import` | Import to database | `./datautil import --source data.csv --to-db` |
+| `query` | Execute SQL | `./datautil query --sql "SELECT * FROM users"` |
+| `register` | Register user | `./datautil register --username admin --email admin@example.com --password pass` |
+| `login` | Login user | `./datautil login --email admin@example.com --password pass` |
+| `init-db` | Initialize database | `./datautil init-db` |
+| `server` | Start API server | `./datautil server --port 8080` |
 
 ---
 
-## Quick Start Guide
+## HTTP API Endpoints
 
-### 1. Initialize Database
-```bash
-# SQLite (default)
-./datautil init-db
+### Public Endpoints (No Auth Required)
 
-# PostgreSQL
-export DB_DRIVER=postgres DB_HOST=localhost DB_USER=postgres DB_PASSWORD=secret DB_NAME=mydb
-./datautil init-db
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/health` | GET | Health check |
+| `/api/auth/register` | POST | Register new user |
+| `/api/auth/login` | POST | Login and get JWT |
+
+### Protected Endpoints (Auth Required)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/data/filter` | POST | Filter rows |
+| `/api/data/transform` | POST | Transform data |
+| `/api/data/validate` | POST | Validate dataset |
+| `/api/data/export` | POST | Export data |
+| `/api/data/import` | POST | Import to DB |
+| `/api/db/query` | POST | Execute SQL |
+| `/api/db/insert` | POST | Insert row |
+| `/api/db/update` | POST | Update rows |
+| `/api/db/delete` | POST | Delete rows |
+| `/api/users` | GET | List users |
+| `/api/logs` | GET | Operation logs |
+
+### Swagger UI
+
+| URL | Description |
+|-----|-------------|
+| `/swagger` | Interactive documentation |
+| `/swagger.yaml` | OpenAPI spec |
+
+---
+
+## Data Models
+
+### User
+```go
+type User struct {
+    ID        uint
+    Username  string
+    Email     string
+    Password  string
+    Role      string    // "admin", "user", "guest"
+    Active    bool
+    CreatedAt time.Time
+    UpdatedAt time.Time
+}
 ```
 
-### 2. Register & Login
-```bash
-# Register new user
-./datautil register --username admin --email admin@example.com --password secret123
-
-# Login to get token
-./datautil login --email admin@example.com --password secret123
-
-# Output: JWT Token will be displayed
-# Use this token with --token flag
+### OperationLog
+```go
+type OperationLog struct {
+    ID         uint
+    UserID     uint
+    Operation  string
+    InputFile  string
+    OutputFile string
+    Details    string
+    CreatedAt  time.Time
+}
 ```
 
-### 3. Data Operations (with file-based datasets)
-```bash
-TOKEN="your-jwt-token-here"
-
-# Filter data
-./datautil filter --input data.csv --where "age > 25" --token "$TOKEN"
-
-# Transform data  
-./datautil transform --input data.csv --add "full_name=first_name+last_name" --token "$TOKEN"
-
-# Validate data
-./datautil validate --input data.csv --required name,email,age --token "$TOKEN"
-
-# Export data
-./datautil export --input data.csv --to json --output result.json --token "$TOKEN"
-```
-
-### 4. Database CRUD Operations
-```bash
-TOKEN="your-jwt-token-here"
-
-# Query data
-./datautil query --sql "SELECT * FROM users" --token "$TOKEN"
-
-# Insert data
-./datautil insert --table users --values "name=John,age=30,city=NYC" --token "$TOKEN"
-
-# Update data
-./datautil update --table users --set "age=31" --where "name=John" --token "$TOKEN"
-
-# Delete data
-./datautil delete --table users --where "name=John" --token "$TOKEN"
-
-# Import CSV to database
-./datautil import --input data.csv --table my_data --create --token "$TOKEN"
+### RouteConfig
+```go
+type RouteConfig struct {
+    ID                uint
+    Path              string
+    SourceType        string
+    Source            string
+    FilterExpr        string
+    SelectCols        string
+    AuthRequired      bool
+    IsDynamic         bool
+    PaginationEnabled bool
+    DefaultLimit      int
+    MaxLimit          int
+}
 ```
 
 ---
 
-## Usage Examples
+## Testing Coverage
 
-### Filter Operations
+| Package | Coverage | Tests |
+|---------|----------|-------|
+| `pkg/operations` | 92.6% | 21 |
+| `pkg/models` | 80.0% | 9 |
+| `pkg/auth` | 83.1% | 21 |
+| `pkg/data` | 79.7% | 16 |
+| `pkg/db` | 9.2% | 8 |
+| **Total** | **~67%** | **75+** |
+
+---
+
+## Build Commands
+
 ```bash
-# Filter rows by condition
-./datautil filter --input data.csv --where "age > 25" --token "$TOKEN"
+# Build binary
+go build -o datautil
 
-# Select specific columns
-./datautil filter --input data.csv --select name,email --token "$TOKEN"
+# Run tests
+go test ./...
 
-# Combine filter and column selection
-./datautil filter --input data.csv --where "city==NYC" --select name,age --token "$TOKEN"
-```
+# Run with coverage
+go test -cover ./...
 
-### Transform Operations
-```bash
-# Add new column
-./datautil transform --input data.csv --add "full_name=first+last" --token "$TOKEN"
+# Run integration tests
+go test -tags=integration ./tests/...
 
-# Remove columns
-./datautil transform --input data.csv --remove age,city --token "$TOKEN"
-
-# Rename column
-./datautil transform --input data.csv --rename "old_name:new_name" --token "$TOKEN"
-```
-
-### Database Query
-```bash
-# Simple query
-./datautil query --sql "SELECT * FROM users" --token "$TOKEN"
-
-# Query with condition
-./datautil query --sql "SELECT * FROM products WHERE price > 100" --token "$TOKEN"
-
-# Aggregate query
-./datautil query --sql "SELECT COUNT(*) as total FROM orders" --token "$TOKEN"
+# Run E2E tests
+go test -tags=e2e ./tests/...
 ```
 
 ---
 
-## Environment Configuration
+## Environment Variables
 
-```bash
-# Create .env file
-cat > .env << 'EOF'
-DB_DRIVER=sqlite3
-DB_NAME=datautil
-JWT_SECRET=your-secret-key-change-in-production
-EOF
-
-# Or use environment variables
-export DB_DRIVER=postgres
-export DB_HOST=localhost
-export DB_PORT=5432
-export DB_USER=postgres
-export DB_PASSWORD=secret
-export DB_NAME=myapp
-```
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DB_HOST` | localhost | Database host |
+| `DB_PORT` | 5432 | Database port |
+| `DB_USER` | postgres | Database user |
+| `DB_PASSWORD` | postgres | Database password |
+| `DB_NAME` | datautil | Database name |
+| `DB_DRIVER` | sqlite3 | Database driver |
+| `JWT_SECRET` | - | JWT signing secret |
+| `PORT` | 8080 | HTTP server port |
 
 ---
 
-## Docker/Podman Support
+## API Usage Example
 
 ```bash
-# Build container
-podman build -t datautil .
+# Start server
+./datautil server &
 
-# Run with volume mount
-podman run --rm -v $(pwd):/data datautil filter --input /data/data.csv --where "age > 25" --token "JWT"
+# Register user
+curl -X POST http://localhost:8080/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","email":"admin@example.com","password":"password123"}'
+
+# Login
+curl -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@example.com","password":"password123"}'
+
+# Filter data (use token from login)
+curl -X POST http://localhost:8080/api/data/filter \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '{"input":"data.csv","where":"age > 25"}'
 ```
-
----
-
-## Version
-
-1.0.0
-
-## License
-
-MIT License - Improwised Technologies Pvt. Ltd.

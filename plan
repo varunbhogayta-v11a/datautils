@@ -1,0 +1,595 @@
+opencode -s ses_269af3243ffenWFAnxoo26n1YF
+
+Detailed Plan: Custom HTTP Routes for Dataset Serving
+Overview
+Add the ability to define custom HTTP routes in a config file that serve processed datasets from files. Routes are registered at server startup and can apply filters, transformations, and column selection.
+---
+1. Configuration Structure
+File: configs/routes.yaml (or embed in config.yaml)
+routes:
+  /api/users:
+    source: ./data/users.csv
+    filter: "active=true"
+    select: "name,email,role"
+    auth: true
+  /api/sales:
+    source: ./data/sales.json
+    transform:
+      add: "region=APAC"
+    filter: "amount > 1000"
+    auth: false
+  /api/products:
+    source: ./data/products.xlsx
+    cache: true
+    ttl: 300  # seconds
+    auth: true
+---
+2. Data Models
+New file: pkg/models/route.go
+type RouteConfig struct {
+    Path        string         `yaml:"path"`
+    Source      string         `yaml:"source"`
+    Filter      string         `yaml:"filter,omitempty"`
+    Select      string         `yaml:"select,omitempty"`
+    Transform   TransformOps   `yaml:"transform,omitempty"`
+    Auth        bool           `yaml:"auth"`
+    Cache       bool           `yaml:"cache,omitempty"`
+    TTL         int            `yaml:"ttl,omitempty"`
+}
+type TransformOps struct {
+    Add    string `yaml:"add,omitempty"`
+    Remove string `yaml:"remove,omitempty"`
+    Rename string `yaml:"rename,omitempty"`
+}
+type RouteManager struct {
+    routes    map[string]*RouteConfig
+    datasets  map[string]*data.Dataset
+    mu        sync.RWMutex
+}
+---
+### 3. Implementation Components
+#### 3.1 Route Loader (`pkg/routes/loader.go`)
+- Load routes from `configs/routes.yaml`
+- Validate routes (file exists, valid operations)
+- Pre-load datasets at startup (optional optimization)
+#### 3.2 Route Handler (`cmd/routes.go`)
+- New command: `datautil routes` (list, validate, reload)
+- HTTP handler that processes requests using route config
+#### 3.3 Cache Manager (`pkg/routes/cache.go`)
+- Optional in-memory caching per route
+- TTL-based expiration
+#### 3.4 Server Integration (`cmd/server.go`)
+- Modify `startServer()` to load routes
+- Register route handlers before fixed endpoints
+---
+4. Implementation Steps
+Step	Task	Files
+1	Create route config model	pkg/models/route.go
+2	Create route loader	pkg/routes/loader.go
+3	Create route handler	pkg/routes/handler.go
+4	Add routes CLI command	cmd/routes.go
+5	Integrate with server	cmd/server.go
+6	Create sample config	configs/routes.yaml
+7	Add tests	pkg/routes/*_test.go
+---
+5. CLI Commands
+# List configured routes
+datautil routes list
+# Validate routes config
+datautil routes validate
+# Reload routes without restart
+datautil routes reload
+# Server with routes
+datautil server --port 8080
+---
+6. Request/Response Flow
+HTTP Request
+    │
+    ▼
+Check route exists?
+    │yes
+    ▼
+Auth required? ──yes──► Validate JWT
+    │
+    ▼
+Load dataset (file/cache)
+    │
+    ▼
+Apply filter (if defined)
+    │
+    ▼
+Apply transform (if defined)
+    │
+    ▼
+Select columns (if defined)
+    │
+    ▼
+Return JSON response
+---
+7. Edge Cases to Handle
+Case	Handling
+File not found	Return 404 with error message
+Invalid filter syntax	Return 400 with parse error
+Large files	Stream response, optional pagination
+Auth failure	Return 401
+Route conflict	Error at startup (duplicate paths)
+---
+### 8. Future Enhancements (Optional)
+- Dynamic routes via API (`POST /api/admin/routes`)
+- Database as source
+- Pagination support (`?page=1&limit=100`)
+- CSV/JSON/XML output format (`?format=csv`)
+- Rate limiting per route
+- WebSocket for real-time updates
+---
+9. Questions Before Implementation
+1. Config location: Separate routes.yaml or embed in config.yaml?
+2. Route changes: Reload on server restart only, or support runtime reload?
+3. Large files: Implement pagination, or accept memory constraints?
+4. Output format: Always JSON, or allow format selection via query param?
+---
+Ready to implement? Let me know your preferences on the questions above, or I can proceed with sensible defaults (separate config file, restart to reload, JSON-only output).
+▣  Plan · MiniMax M2.5 Free · 55.2s
+use fiber for routing also add the dynamic routes and use fiber for routing and middlware ,pagination as supprot , export data in given format
+Thinking: The user wants me to update the plan to use Fiber for routing (instead of standard Go net/http), add dynamic routes, support pagination, and export data in various formats. Let me update the detailed plan accordingly.
+Key changes to incorporate:
+1. Use Fiber framework instead of net/http
+2. Dynamic routes via API
+3. Pagination support
+4. Export format selection (CSV, JSON, XML)
+Let me first check if Fiber is already in the go.mod or if it's a new dependency needed.
+✱ Glob "go.mod" (1 match)
+Thinking: Let me read the go.mod to see current dependencies.
+→ Read go.mod
+Thinking: Now I understand the current setup. The project uses net/http. The user wants to migrate to Fiber for routing. Let me create a comprehensive plan for implementing custom HTTP routes using Fiber with all the requested features.
+Key requirements:
+1. Use Fiber for routing and middleware
+2. Dynamic routes (configurable at runtime)
+3. Pagination support
+4. Export data in multiple formats (CSV, JSON, XML)
+Let me also check the current server implementation more thoroughly to understand what needs to be migrated.
+→ Read cmd/server.go [limit=200, offset=50]
+Thinking: Now I have a clear picture. The current server uses Go's standard library net/http with http.ServeMux. The user wants to:
+1. Replace net/http with Fiber (a Go web framework)
+2. Add dynamic routes - custom HTTP routes that serve datasets
+3. Use Fiber's middleware system
+4. Add pagination support
+5. Support export in various formats (CSV, JSON, XML)
+Let me create a comprehensive plan that addresses all these requirements.
+Got it. You want to migrate from net/http to Fiber framework and add dynamic routes with pagination and export functionality.
+---
+Comprehensive Plan: Fiber Migration + Dynamic Routes
+1. Architecture Overview
+┌─────────────────────────────────────────────────────────────────────┐
+│                         Fiber Application                           │
+├─────────────────────────────────────────────────────────────────────┤
+│  Middleware Stack                                                   │
+│  ├── Recovery (panic recovery)                                      │
+│  ├── Logger (request logging)                                      │
+│  ├── CORS (cross-origin)                                           │
+│  ├── JWT Auth (token validation)                                   │
+│  └── Custom (rate limiting, etc.)                                  │
+├─────────────────────────────────────────────────────────────────────┤
+│  Route Groups                                                       │
+│  ├── /api/auth        → Register, Login                            │
+│  ├── /api/data        → Filter, Transform, Validate, Export, Import│
+│  ├── /api/db          → Query, Insert, Update, Delete              │
+│  ├── /api/users       → User management                            │
+│  ├── /api/logs        → Operation logs                            │
+│  ├── /custom/*        → Dynamic user-defined routes                │
+│  └── /                → Swagger UI, Health                         │
+└─────────────────────────────────────────────────────────────────────┘
+---
+2. Dependencies
+Add to go.mod:
+github.com/gofiber/fiber/v2 v2.52.0  // Fiber framework
+github.com/gofiber/cors v2.0.0        // CORS middleware
+github.com/gofiber/logger v1.0.0      // Logging middleware
+---
+3. Route Configuration Structure
+File: configs/routes.yaml
+routes:
+  # Static route - fixed filter
+  /custom/users:
+    source: ./data/users.csv
+    filter: "active=true"
+    select: "name,email,role"
+    auth: true
+    format: json
+    cache: true
+    ttl: 300
+  # Dynamic route - accepts query params
+  /custom/products:
+    source: ./data/products.json
+    dynamic: true
+    params:
+      - name: category
+        type: string
+        default: all
+      - name: min_price
+        type: float
+        default: 0
+    select: "id,name,price,category"
+    auth: false
+    pagination: true
+    default_limit: 50
+    max_limit: 1000
+  # Dynamic with multiple output formats
+  /custom/sales:
+    source: ./data/sales.xlsx
+    dynamic: true
+    filter: "year=2024"
+    export_formats:
+      - json
+      - csv
+      - xml
+    pagination: true
+  # Database source route
+  /custom/db-users:
+    source_type: database
+    table: users
+    filter: "active=true"
+    auth: true
+---
+4. Data Models
+New file: pkg/models/route.go
+package models
+type RouteConfig struct {
+    Path         string           `yaml:"path"`
+    Source       string           `yaml:"source"`
+    SourceType   string           `yaml:"source_type,omitempty"` // file, database
+    Table        string           `yaml:"table,omitempty"`        // for database source
+    Filter       string           `yaml:"filter,omitempty"`      // static filter
+    Select       string           `yaml:"select,omitempty"`      // column selection
+    Transform    TransformConfig  `yaml:"transform,omitempty"`
+    Auth         bool             `yaml:"auth"`
+    Dynamic      bool             `yaml:"dynamic"`              // accepts query params
+    Params       []ParamConfig    `yaml:"params,omitempty"`     // dynamic parameters
+    Pagination   bool             `yaml:"pagination"`
+    DefaultLimit int              `yaml:"default_limit"`
+    MaxLimit     int              `yaml:"max_limit"`
+    Cache        bool             `yaml:"cache"`
+    TTL          int              `yaml:"ttl"`
+    ExportFormats []string       `yaml:"export_formats"`
+    Format       string          `yaml:"format"`                // default format
+}
+type TransformConfig struct {
+    Add    string `yaml:"add,omitempty"`
+    Remove string `yaml:"remove,omitempty"`
+    Rename string `yaml:"rename,omitempty"`
+}
+type ParamConfig struct {
+    Name    string `yaml:"name"`
+    Type    string `yaml:"type"`    // string, int, float, bool
+    Default string `yaml:"default"`
+    Required bool  `yaml:"required"`
+}
+type DynamicRoute struct {
+    Config       *RouteConfig
+    Dataset      *data.Dataset
+    Cache        *RouteCache
+}
+type RouteCache struct {
+    Data  *data.Dataset
+    Expires time.Time
+}
+type RouteManager struct {
+    Routes map[string]*DynamicRoute
+    mu     sync.RWMutex
+}
+---
+5. Implementation Components
+5.1 Route Loader (pkg/routes/loader.go)
+func LoadRoutes(configPath string) (*RouteManager, error)
+func ValidateRouteConfig(config *RouteConfig) error
+func PreloadDatasets(manager *RouteManager) error
+5.2 Route Handler (pkg/routes/handler.go)
+func HandleDynamicRoute(c *fiber.Ctx, route *DynamicRoute) error
+func ApplyFilters(ds *data.Dataset, filter string) (*data.Dataset, error)
+func ApplyTransforms(ds *data.Dataset, transform *TransformConfig) *data.Dataset
+func SelectColumnsFromRoute(ds *data.Dataset, selectCols string) *data.Dataset
+func PaginateDataset(ds *data.Dataset, page, limit int) (*data.Dataset, PaginationInfo)
+func ExportDataset(ds *data.Dataset, format string) (interface{}, error)
+5.3 Pagination Response
+type PaginatedResponse struct {
+    Success   bool        `json:"success"`
+    Data      interface{} `json:"data"`
+    Pagination Pagination `json:"pagination"`
+}
+type Pagination struct {
+    Page       int   `json:"page"`
+    Limit      int   `json:"limit"`
+    TotalRows  int   `json:"total_rows"`
+    TotalPages int   `json:"total_pages"`
+    HasNext    bool  `json:"has_next"`
+    HasPrev    bool  `json:"has_prev"`
+}
+5.4 Fiber Server Setup (cmd/server.go)
+func startServer() {
+    // Create Fiber app
+    app := fiber.New(fiber.Config{
+        ErrorHandler: customErrorHandler,
+        AppName:      "datautil",
+    })
+    // Middleware
+    app.Use(recovery.New())
+    app.Use(logger.New())
+    app.Use(cors.New())
+    // Static routes from config
+    routes, _ := LoadRoutes("./configs/routes.yaml")
+    registerCustomRoutes(app, routes)
+    // API routes
+    api := app.Group("/api")
+
+    // Auth (no auth required)
+    api.Post("/auth/register", handleAPIRegister)
+    api.Post("/auth/login", handleAPILogin)
+    // Protected routes
+    protected := api.Group("", jwtMiddleware)
+    protected.Post("/data/filter", handleAPIFilter)
+    // ... other protected routes
+    // Health check (no auth)
+    app.Get("/api/health", handleHealth)
+    // Swagger
+    app.Get("/swagger.yaml", serveSwaggerSpec)
+    app.Get("/swagger/*", serveSwaggerUI)
+    // Start server
+    app.Listen(":" + serverPort)
+}
+---
+6. CLI Commands
+# Route management
+datautil routes list                  # List all configured routes
+datautil routes validate              # Validate routes.yaml
+datautil routes reload                # Reload routes at runtime
+# Server with custom routes
+datautil server --port 8080 --host 0.0.0.0
+# Direct route testing
+datautil routes test /custom/users    # Test a route response
+---
+7. Request/Response Examples
+GET /custom/users (static route with pagination)
+{
+  "success": true,
+  "data": {
+    "headers": ["name", "email", "role"],
+    "rows": [["John", "john@example.com", "admin"], ...]
+  },
+  "pagination": {
+    "page": 1,
+    "limit": 50,
+    "total_rows": 150,
+    "total_pages": 3,
+    "has_next": true,
+    "has_prev": false
+  }
+}
+GET /custom/products?category=electronics&min_price=100&page=2&limit=20&format=csv
+id,name,price,category
+1,Laptop,999.99,electronics
+2,Tablet,299.99,electronics
+GET /custom/sales?format=xml
+<?xml version="1.0" encoding="UTF-8"?>
+<data>
+  <record>
+    <id>1</id>
+    <amount>5000</amount>
+    <date>2024-01-15</date>
+  </record>
+</data>
+---
+8. Implementation Steps
+Step	Component	Files to Create/Modify
+1	Add Fiber dependency	go.mod, go.sum
+2	Route models	pkg/models/route.go (new)
+3	Route loader	pkg/routes/loader.go (new)
+4	Route handler	pkg/routes/handler.go (new)
+5	JWT middleware	cmd/middleware.go (new)
+6	Migrate server to Fiber	cmd/server.go (rewrite)
+7	Routes CLI command	cmd/routes.go (new)
+8	Sample config	configs/routes.yaml (new)
+9	Update Swagger	cmd/server.go
+10	Tests	pkg/routes/*_test.go (new)
+---
+9. Dynamic Route Features
+Feature	Implementation
+Query parameter filtering	?category=electronics maps to dynamic param
+Pagination	?page=1&limit=50 returns paginated response
+Format selection	?format=csv|json|xml overrides default
+Field selection	?fields=id,name,price limits columns
+Cache control	?nocache=true bypasses cache
+---
+10. Middleware Stack (Fiber)
+// Global middleware
+app.Use(recovery.New())           // Panic recovery
+app.Use(logger.New())             // Request logging
+app.Use(cors.New())               // CORS headers
+app.Use(limiter.New())            // Rate limiting (optional)
+// Route-specific
+app.Get("/custom/*", cacheMiddleware, dynamicRouteHandler)
+app.Post("/api/data/*", jwtMiddleware, dataHandler)
+---
+11. Questions Before Implementation
+1. Migration approach:
+   - A) Replace net/http entirely with Fiber
+   - B) Run Fiber alongside, migrate incrementally
+2. Dynamic routes storage:
+   - A) YAML config file (current plan)
+   - B) Database table (runtime management)
+   - C) Both (config + API to add more)
+3. Default pagination:
+   - Page size: 50 rows? 100?
+   - Max limit: 1000?
+4. Rate limiting:
+   - Enable by default? Per-route limits?
+Please confirm your preferences on these questions, or I can proceed with sensible defaults.
+▣  Plan · MiniMax M2.5 Free · 1m 28s
+replace migration approach with fiber  , for dynamic routes use database , default pagination with 15 rows, no need for rate limit now
+Thinking: The user wants me to implement the Fiber migration with database-driven dynamic routes. Let me finalize the plan based on their preferences:
+1. Replace net/http entirely with Fiber
+2. Dynamic routes stored in database
+3. Default pagination: 15 rows
+4. No rate limiting
+I should provide a final consolidated plan.
+Final Implementation Plan
+Based on your preferences:
+- ✅ Replace net/http entirely with Fiber
+- ✅ Dynamic routes stored in database (not YAML config)
+- ✅ Default pagination: 15 rows
+- ✅ No rate limiting
+---
+1. Database Schema (New Table)
+-- Table: custom_routes
+CREATE TABLE custom_routes (
+    id SERIAL PRIMARY KEY,
+    path VARCHAR(255) UNIQUE NOT NULL,
+    source_type VARCHAR(20) DEFAULT 'file',  -- 'file' or 'database'
+    source VARCHAR(500),                      -- file path or table name
+    filter_expr VARCHAR(500),
+    select_cols VARCHAR(500),
+    transform_add VARCHAR(255),
+    transform_remove VARCHAR(255),
+    transform_rename VARCHAR(255),
+    auth_required BOOLEAN DEFAULT true,
+    is_dynamic BOOLEAN DEFAULT false,
+    dynamic_params JSONB,
+    pagination_enabled BOOLEAN DEFAULT true,
+    default_limit INTEGER DEFAULT 15,
+    max_limit INTEGER DEFAULT 1000,
+    default_format VARCHAR(10) DEFAULT 'json',
+    cache_enabled BOOLEAN DEFAULT false,
+    cache_ttl INTEGER DEFAULT 300,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    active BOOLEAN DEFAULT true
+);
+---
+2. Implementation Phases
+Phase	Task	Files
+1	Add Fiber dependencies	go.mod
+2	Create route model & migration	pkg/models/route.go, update migrations
+3	Route CRUD operations	pkg/repo/route_repo.go (new)
+4	Fiber middleware (JWT, CORS, Recovery)	cmd/middleware.go (new)
+5	Rewrite server with Fiber	cmd/server.go (major rewrite)
+6	Dynamic route handler	cmd/route_handler.go (new)
+7	Route management CLI	cmd/routes.go (new)
+8	Update Swagger docs	cmd/server.go
+9	Tests	Various
+---
+3. Fiber Server Structure
+func startServer() {
+    app := fiber.New(fiber.Config{
+        ErrorHandler: customErrorHandler,
+        AppName:      "datautil",
+    })
+    // Global middleware
+    app.Use(recovery.New())
+    app.Use(logger.New())
+    app.Use(cors.New())
+    // Load dynamic routes from DB
+    routeManager, _ := repo.LoadRoutesFromDB()
+    // Register custom routes
+    for _, route := range routeManager.Routes {
+        registerDynamicRoute(app, route)
+    }
+    // API Groups
+    api := app.Group("/api")
+    // Public routes
+    api.Post("/auth/register", handleAPIRegister)
+    api.Post("/auth/login", handleAPILogin)
+    api.Get("/health", handleHealth)
+    // Protected routes
+    protected := api.Group("", jwtMiddleware)
+    protected.Post("/data/filter", handleAPIFilter)
+    protected.Post("/data/transform", handleAPITransform)
+    protected.Post("/data/validate", handleAPIValidate)
+    protected.Post("/data/export", handleAPIExport)
+    protected.Post("/data/import", handleAPIImport)
+    protected.Post("/db/query", handleAPIQuery)
+    protected.Post("/db/insert", handleAPIInsert)
+    protected.Post("/db/update", handleAPIUpdate)
+    protected.Post("/db/delete", handleAPIDelete)
+    protected.Get("/users", handleAPIUsers)
+    protected.Get("/logs", handleAPILogs)
+    // Admin routes for route management
+    admin := protected.Group("/admin")
+    admin.Post("/routes", createRoute)
+    admin.Put("/routes/:id", updateRoute)
+    admin.Delete("/routes/:id", deleteRoute)
+    admin.Get("/routes", listRoutes)
+    // Swagger
+    app.Get("/swagger.yaml", serveSwaggerSpec)
+    app.Get("/swagger/*", serveSwaggerUI)
+    app.Listen(":" + serverPort)
+}
+---
+4. API Endpoints for Route Management
+Method	Endpoint	Description
+GET	/api/admin/routes	List all custom routes
+POST	/api/admin/routes	Create new custom route
+PUT	/api/admin/routes/:id	Update custom route
+DELETE	/api/admin/routes/:id	Delete custom route
+GET	/api/admin/routes/:id/test	Test route response
+---
+5. Dynamic Route Features
+Feature	Query Param	Example
+Pagination	?page=1&limit=15	/custom/users?page=2
+Format	?format=json|csv|xml	/custom/users?format=csv
+Filter	?field=value	/custom/products?category=electronics
+Fields	?fields=id,name	/custom/users?fields=name,email
+No Cache	?nocache=true	/custom/users?nocache=true
+---
+6. Sample CLI Commands
+# Initialize DB (creates custom_routes table)
+datautil init-db
+# Start server
+datautil server --port 8080
+# Add route via CLI (future)
+datautil route add --path /custom/users --source data/users.csv --filter "active=true"
+# List routes
+datautil route list
+---
+7. Route Creation Example (API)
+# Create a dynamic route
+curl -X POST http://localhost:8080/api/admin/routes \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "path": "/custom/products",
+    "source": "./data/products.json",
+    "source_type": "file",
+    "is_dynamic": true,
+    "dynamic_params": [
+      {"name": "category", "type": "string", "default": "all"},
+      {"name": "min_price", "type": "float", "default": "0"}
+    ],
+    "pagination_enabled": true,
+    "default_limit": 15,
+    "auth_required": false,
+    "default_format": "json"
+  }'
+---
+### 8. Files to Create/Modify
+**New Files:**
+- `pkg/models/route.go` - Route model
+- `pkg/repo/route_repo.go` - DB operations for routes
+- `cmd/middleware.go` - JWT, CORS middleware
+- `cmd/route_handler.go` - Dynamic route HTTP handler
+- `cmd/routes.go` - Route management CLI
+**Modified Files:**
+- `cmd/server.go` - Major rewrite to Fiber
+- `go.mod` - Add Fiber dependencies
+- `pkg/models/user.go` - Add migration for custom_routes table
+---
+9. Migration Steps (Execution Order)
+1. Add Fiber dependencies to go.mod
+2. Create pkg/models/route.go
+3. Create pkg/repo/route_repo.go
+4. Create cmd/middleware.go
+5. Rewrite cmd/server.go with Fiber
+6. Create cmd/route_handler.go
+7. Create cmd/routes.go
+8. Update Swagger docs
+9. Test all endpoints
+---
+Ready to execute? Let me know if you want any adjustments to this plan before I begin implementation.
