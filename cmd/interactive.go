@@ -6,8 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/improwised/datautil/pkg/data"
-	"github.com/improwised/datautil/pkg/operations"
+	"github.com/varunbhogayta-v11a/datautils/pkg/data"
+	"github.com/varunbhogayta-v11a/datautils/pkg/operations"
 	"github.com/spf13/cobra"
 )
 

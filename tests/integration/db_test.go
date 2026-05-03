@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/improwised/datautil/pkg/db"
+	"github.com/varunbhogayta-v11a/datautils/pkg/db"
 )
 
 func TestIntegration_ConnectSQLite(t *testing.T) {

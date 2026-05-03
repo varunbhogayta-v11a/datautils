@@ -5,10 +5,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/improwised/datautil/pkg/auth"
-	"github.com/improwised/datautil/pkg/data"
-	"github.com/improwised/datautil/pkg/db"
-	"github.com/improwised/datautil/pkg/operations"
+	"github.com/varunbhogayta-v11a/datautils/pkg/auth"
+	"github.com/varunbhogayta-v11a/datautils/pkg/data"
+	"github.com/varunbhogayta-v11a/datautils/pkg/db"
+	"github.com/varunbhogayta-v11a/datautils/pkg/operations"
 	"github.com/spf13/cobra"
 )
 

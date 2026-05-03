@@ -3,7 +3,7 @@ package operations
 import (
 	"testing"
 
-	"github.com/improwised/datautil/pkg/data"
+	"github.com/varunbhogayta-v11a/datautils/pkg/data"
 )
 
 func TestAddColumn(t *testing.T) {
@@ -204,10 +204,10 @@ func TestParseCondition(t *testing.T) {
 
 func TestEvaluateCondition(t *testing.T) {
 	tests := []struct {
-		rowVal   string
-		operator string
+		rowVal    string
+		operator  string
 		targetVal string
-		want     bool
+		want      bool
 	}{
 		{"25", ">", "20", true},
 		{"15", ">", "20", false},
@@ -239,7 +239,7 @@ func TestCompareNumeric(t *testing.T) {
 		{"25", "20", 1},
 		{"20", "25", -1},
 		{"20", "20", 0},
-		{"abc", "def", -1}, 
+		{"abc", "def", -1},
 		{"10.5", "10.5", 0},
 		{"10.5", "20.0", -1},
 	}

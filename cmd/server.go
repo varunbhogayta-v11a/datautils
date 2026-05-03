@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -12,11 +13,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/improwised/datautil/pkg/auth"
-	"github.com/improwised/datautil/pkg/data"
-	"github.com/improwised/datautil/pkg/db"
-	"github.com/improwised/datautil/pkg/models"
-	"github.com/improwised/datautil/pkg/operations"
+	"github.com/varunbhogayta-v11a/datautils/pkg/auth"
+	"github.com/varunbhogayta-v11a/datautils/pkg/data"
+	"github.com/varunbhogayta-v11a/datautils/pkg/db"
+	"github.com/varunbhogayta-v11a/datautils/pkg/models"
+	"github.com/varunbhogayta-v11a/datautils/pkg/operations"
 	"github.com/spf13/cobra"
 )
 
@@ -64,6 +65,9 @@ func startServer() {
 	mux.HandleFunc("/api/data/validate", handleAPIValidate)
 	mux.HandleFunc("/api/data/export", handleAPIExport)
 	mux.HandleFunc("/api/data/import", handleAPIImport)
+	mux.HandleFunc("/api/data/upload", handleUpload)
+	mux.HandleFunc("/api/data/files", handleListFiles)
+	mux.HandleFunc("/api/data/download/", handleDownload)
 
 	mux.HandleFunc("/api/db/query", handleAPIQuery)
 	mux.HandleFunc("/api/db/insert", handleAPIInsert)
@@ -83,11 +87,37 @@ func startServer() {
 		WriteTimeout: 30 * time.Second,
 	}
 
+	localAddr := "http://localhost:" + serverPort
+	networkAddr := "http://127.0.0.1:" + serverPort
+
+	ifaces, err := net.Interfaces()
+	if err == nil {
+		for _, iface := range ifaces {
+			if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+				continue
+			}
+			addrs, err := iface.Addrs()
+			if err != nil {
+				continue
+			}
+			for _, addr := range addrs {
+				if ipnet, ok := addr.(*net.IPNet); ok {
+					ip := ipnet.IP.To4()
+					if ip != nil && (ip[0] == 10 || ip[0] == 192 || ip[0] == 172) {
+						networkAddr = fmt.Sprintf("http://%s:%s", ipnet.IP.String(), serverPort)
+						break
+					}
+				}
+			}
+		}
+	}
+
 	go func() {
 		fmt.Printf("🚀 DataUtil API Server starting...\n")
-		fmt.Printf("   API:    http://%s/api\n", addr)
-		fmt.Printf("   Swagger: http://%s/swagger\n", addr)
-		fmt.Printf("\nPress Ctrl+C to stop the server\n")
+		fmt.Printf("   Local:   %s\n", localAddr)
+		fmt.Printf("   Network: %s\n", networkAddr)
+		fmt.Printf("   Swagger: %s/swagger\n", localAddr)
+		fmt.Printf("\n  VITE_like  press + ctrl + c to stop\n\n")
 
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
@@ -688,6 +718,117 @@ func handleAPIImport(w http.ResponseWriter, r *http.Request) {
 		},
 		Message: fmt.Sprintf("Successfully imported %d rows", totalInserted),
 	})
+}
+
+const uploadDir = "./data/uploads"
+
+func handleUpload(w http.ResponseWriter, r *http.Request) {
+	claims, err := authenticateRequest(r)
+	if err != nil {
+		writeJSON(w, http.StatusUnauthorized, APIResponse{Success: false, Error: err.Error()})
+		return
+	}
+
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, APIResponse{Success: false, Error: "Method not allowed"})
+		return
+	}
+
+	if err := os.MkdirAll(uploadDir, 0755); err != nil {
+		writeJSON(w, http.StatusInternalServerError, APIResponse{Success: false, Error: "Failed to create upload directory"})
+		return
+	}
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, APIResponse{Success: false, Error: "No file uploaded"})
+		return
+	}
+	defer file.Close()
+
+	destPath := uploadDir + "/" + header.Filename
+	dest, err := os.Create(destPath)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, APIResponse{Success: false, Error: "Failed to save file"})
+		return
+	}
+	defer dest.Close()
+
+	if _, err := io.Copy(dest, file); err != nil {
+		writeJSON(w, http.StatusInternalServerError, APIResponse{Success: false, Error: "Failed to save file"})
+		return
+	}
+
+	auth.LogOperation(claims.UserID, "upload", header.Filename, "", fmt.Sprintf("%.2f KB", float64(header.Size)/1024))
+
+	writeJSON(w, http.StatusOK, APIResponse{
+		Success: true,
+		Data: map[string]interface{}{
+			"filename": header.Filename,
+			"size":     header.Size,
+			"path":     destPath,
+		},
+		Message: "File uploaded successfully",
+	})
+}
+
+func handleListFiles(w http.ResponseWriter, r *http.Request) {
+	_, err := authenticateRequest(r)
+	if err != nil {
+		writeJSON(w, http.StatusUnauthorized, APIResponse{Success: false, Error: err.Error()})
+		return
+	}
+
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, APIResponse{Success: false, Error: "Method not allowed"})
+		return
+	}
+
+	if err := os.MkdirAll(uploadDir, 0755); err != nil {
+		writeJSON(w, http.StatusInternalServerError, APIResponse{Success: false, Error: "Failed to read directory"})
+		return
+	}
+
+	entries, err := os.ReadDir(uploadDir)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, APIResponse{Success: false, Error: "Failed to read files"})
+		return
+	}
+
+	var files []map[string]interface{}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			info, _ := entry.Info()
+			files = append(files, map[string]interface{}{
+				"name": entry.Name(),
+				"size": info.Size(),
+			})
+		}
+	}
+
+	writeJSON(w, http.StatusOK, APIResponse{
+		Success: true,
+		Data:    files,
+		Message: fmt.Sprintf("%d files", len(files)),
+	})
+}
+
+func handleDownload(w http.ResponseWriter, r *http.Request) {
+	_, err := authenticateRequest(r)
+	if err != nil {
+		writeJSON(w, http.StatusUnauthorized, APIResponse{Success: false, Error: err.Error()})
+		return
+	}
+
+	filename := strings.TrimPrefix(r.URL.Path, "/api/data/download/")
+	if filename == "" || strings.Contains(filename, "..") {
+		http.NotFound(w, r)
+		return
+	}
+
+	filepath := uploadDir + "/" + filename
+	w.Header().Set("Content-Disposition", "attachment; filename="+filename)
+	http.ServeFile(w, r, filepath)
 }
 
 type QueryRequest struct {

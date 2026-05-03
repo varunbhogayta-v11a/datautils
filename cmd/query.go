@@ -5,9 +5,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/improwised/datautil/pkg/auth"
-	"github.com/improwised/datautil/pkg/db"
-	"github.com/improwised/datautil/pkg/models"
+	"github.com/varunbhogayta-v11a/datautils/pkg/auth"
+	"github.com/varunbhogayta-v11a/datautils/pkg/db"
+	"github.com/varunbhogayta-v11a/datautils/pkg/models"
 	"github.com/spf13/cobra"
 )
 

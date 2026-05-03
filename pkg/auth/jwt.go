@@ -10,15 +10,15 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/improwised/datautil/pkg/models"
+	"github.com/varunbhogayta-v11a/datautils/pkg/models"
 )
 
 var (
-	ErrInvalidCredentials  = errors.New("invalid credentials")
-	ErrUserExists          = errors.New("user already exists")
-	ErrUserNotFound        = errors.New("user not found")
-	ErrInvalidToken        = errors.New("invalid token")
-	ErrUnauthorized        = errors.New("unauthorized")
+	ErrInvalidCredentials = errors.New("invalid credentials")
+	ErrUserExists         = errors.New("user already exists")
+	ErrUserNotFound       = errors.New("user not found")
+	ErrInvalidToken       = errors.New("invalid token")
+	ErrUnauthorized       = errors.New("unauthorized")
 )
 
 type Claims struct {
@@ -94,7 +94,7 @@ func CheckPassword(password, hash string) bool {
 
 var (
 	userRepo models.UserRepository
-	logRepo models.OperationLogRepository
+	logRepo  models.OperationLogRepository
 )
 
 func UserRepository() models.UserRepository {

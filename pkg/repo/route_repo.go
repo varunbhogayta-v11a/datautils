@@ -3,8 +3,8 @@ package repo
 import (
 	"fmt"
 
-	"github.com/improwised/datautil/pkg/db"
-	"github.com/improwised/datautil/pkg/models"
+	"github.com/varunbhogayta-v11a/datautils/pkg/db"
+	"github.com/varunbhogayta-v11a/datautils/pkg/models"
 )
 
 func CreateRoute(route *models.RouteConfig) error {

@@ -89,12 +89,12 @@ func TestConfig_ConnString(t *testing.T) {
 	t.Run("postgres", func(t *testing.T) {
 		cfg := &Config{
 			Driver:   "postgres",
-			Host:    "localhost",
-			Port:    "5432",
-			User:    "user",
+			Host:     "localhost",
+			Port:     "5432",
+			User:     "user",
 			Password: "pass",
-			DBName:  "testdb",
-			SSLMode: "disable",
+			DBName:   "testdb",
+			SSLMode:  "disable",
 		}
 		connStr := cfg.ConnString()
 		if connStr == "" {
@@ -105,11 +105,11 @@ func TestConfig_ConnString(t *testing.T) {
 	t.Run("mysql", func(t *testing.T) {
 		cfg := &Config{
 			Driver:   "mysql",
-			Host:    "localhost",
-			Port:    "3306",
-			User:    "user",
+			Host:     "localhost",
+			Port:     "3306",
+			User:     "user",
 			Password: "pass",
-			DBName:  "testdb",
+			DBName:   "testdb",
 		}
 		connStr := cfg.ConnString()
 		if connStr == "" {

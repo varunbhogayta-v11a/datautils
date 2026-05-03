@@ -4,8 +4,8 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/improwised/datautil/pkg/auth"
-	"github.com/improwised/datautil/pkg/models"
+	"github.com/varunbhogayta-v11a/datautils/pkg/auth"
+	"github.com/varunbhogayta-v11a/datautils/pkg/models"
 )
 
 func JWTMiddleware() fiber.Handler {

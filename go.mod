@@ -1,4 +1,4 @@
-module github.com/improwised/datautil
+module github.com/varunbhogayta-v11a/datautils
 
 go 1.26.1
 

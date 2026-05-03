@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/improwised/datautil/pkg/db"
-	"github.com/improwised/datautil/pkg/models"
+	"github.com/varunbhogayta-v11a/datautils/pkg/db"
+	"github.com/varunbhogayta-v11a/datautils/pkg/models"
 )
 
 func TestHashPassword(t *testing.T) {
@@ -131,9 +131,9 @@ func TestJWTValidateToken_WrongSecret(t *testing.T) {
 func TestParseTokenFromHeader(t *testing.T) {
 	tests := []struct {
 		name      string
-		header   string
+		header    string
 		wantToken string
-		wantErr  bool
+		wantErr   bool
 	}{
 		{"valid bearer", "Bearer mytoken123", "mytoken123", false},
 		{"empty header", "", "", true},

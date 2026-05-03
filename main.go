@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/improwised/datautil/cmd"
+	"github.com/varunbhogayta-v11a/datautils/cmd"
 	"os"
 )
 

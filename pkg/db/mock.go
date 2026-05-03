@@ -4,7 +4,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/improwised/datautil/pkg/models"
+	"github.com/varunbhogayta-v11a/datautils/pkg/models"
 )
 
 type MockUserRepository struct {

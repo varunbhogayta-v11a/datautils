@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/improwised/datautil/pkg/auth"
-	"github.com/improwised/datautil/pkg/db"
-	"github.com/improwised/datautil/pkg/models"
+	"github.com/varunbhogayta-v11a/datautils/pkg/auth"
+	"github.com/varunbhogayta-v11a/datautils/pkg/db"
+	"github.com/varunbhogayta-v11a/datautils/pkg/models"
+	"github.com/varunbhogayta-v11a/datautils/pkg/repo"
 	"github.com/spf13/cobra"
 )
 
@@ -128,6 +129,8 @@ func ensureDB() {
 			os.Exit(1)
 		}
 	}
+	auth.SetUserRepository(repo.NewUserRepository())
+	auth.SetOperationLogRepository(repo.NewOperationLogRepository())
 }
 
 func init() {

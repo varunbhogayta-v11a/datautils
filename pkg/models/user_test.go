@@ -6,10 +6,10 @@ import (
 
 func TestUserHasPermission(t *testing.T) {
 	tests := []struct {
-		name     string
-		role    string
-		action  string
-		want    bool
+		name   string
+		role   string
+		action string
+		want   bool
 	}{
 		{"admin can delete", "admin", "delete", true},
 		{"admin can read", "admin", "read", true},
@@ -134,7 +134,7 @@ func TestPaginationFields(t *testing.T) {
 		TotalRows:  100,
 		TotalPages: 10,
 		HasNext:    true,
-		HasPrev:   false,
+		HasPrev:    false,
 	}
 
 	if p.Page != 1 {
@@ -171,7 +171,7 @@ func TestRouteResponseWithPagination(t *testing.T) {
 	p := &Pagination{Page: 1, Limit: 10, TotalRows: 50}
 	r := &RouteResponse{
 		Success:    true,
-		Data:      []string{"a", "b"},
+		Data:       []string{"a", "b"},
 		Pagination: p,
 	}
 
