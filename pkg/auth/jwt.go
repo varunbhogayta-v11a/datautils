@@ -146,6 +146,40 @@ func Register(username, email, password string) (*models.User, error) {
 	return repo.Create(user)
 }
 
+// RegisterWithRole creates a new user with the specified role.
+func RegisterWithRole(username, email, password, role string) (*models.User, error) {
+	repo := userRepo
+	if repo == nil {
+		return nil, fmt.Errorf("user repository not configured")
+	}
+
+	existing, err := repo.GetByEmail(email)
+	if err == nil && existing != nil {
+		return nil, ErrUserExists
+	}
+	existing, err = repo.GetByUsername(username)
+	if err == nil && existing != nil {
+		return nil, ErrUserExists
+	}
+
+	hashedPassword, err := HashPassword(password)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	user := &models.User{
+		Username:  username,
+		Email:     email,
+		Password:  hashedPassword,
+		Role:      role,
+		Active:    true,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	return repo.Create(user)
+}
+
 func Login(email, password string) (*models.User, string, error) {
 	repo := userRepo
 	if repo == nil {

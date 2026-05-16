@@ -1545,13 +1545,13 @@ paths:
                   type: string
                 add:
                   type: string
-                  description: Add column (format: "name=expression")
+                  description: 'Add column (format: "name=expression")'
                 remove:
                   type: string
                   description: Columns to remove (comma-separated)
                 rename:
                   type: string
-                  description: Rename column (format: "old:new")
+                  description: 'Rename column (format: "old:new")'
                 output:
                   type: string
                 format:
@@ -1588,7 +1588,7 @@ paths:
                   description: Required columns (comma-separated)
                 types:
                   type: string
-                  description: Column types (format: "col:type")
+                  description: 'Column types (format: "col:type")'
       responses:
         '200':
           description: Validation result
@@ -1927,6 +1927,135 @@ components:
               type: integer
         message:
           type: string
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        timestamp:
+          type: string
+
+    ValidationResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            valid:
+              type: boolean
+            errors:
+              type: array
+              items:
+                type: string
+            rows:
+              type: integer
+        message:
+          type: string
+
+    ImportResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            table:
+              type: string
+            rows:
+              type: integer
+        message:
+          type: string
+
+    QueryResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            columns:
+              type: array
+              items:
+                type: string
+            rows:
+              type: array
+              items:
+                type: array
+            count:
+              type: integer
+        message:
+          type: string
+
+    UserList:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            users:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  username:
+                    type: string
+                  email:
+                    type: string
+                  role:
+                    type: string
+                  active:
+                    type: boolean
+        message:
+          type: string
+
+    LogsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            logs:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  userId:
+                    type: integer
+                  operation:
+                    type: string
+                  inputFile:
+                    type: string
+                  outputFile:
+                    type: string
+                  details:
+                    type: string
+                  createdAt:
+                    type: string
+        message:
+          type: string
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        error:
+          type: string
+        message:
+          type: string
 `
 
 var swaggerHTML = `<!DOCTYPE html>
@@ -1941,28 +2070,51 @@ var swaggerHTML = `<!DOCTYPE html>
   </style>
 </head>
 <body>
-  <div id="swagger-ui"></div>
+	<div id="swagger-ui"></div>
+	<div class="loading" id="loading">Loading Swagger UI...</div>
   <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.10.5/swagger-ui-bundle.js" charset="UTF-8"></script>
   <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.10.5/swagger-ui-standalone-preset.js" charset="UTF-8"></script>
-  <script>
-    window.onload = function() {
-      const ui = SwaggerUI({
-        url: "/swagger.yaml",
-        dom_id: "#swagger-ui",
-        deepLinking: true,
-        presets: [
-          SwaggerUI.presets.apis,
-          SwaggerUI.standalonePreset
-        ],
-        plugins: [
-          SwaggerUI.plugins.DownloadUrl
-        ],
-        layout: "StandaloneLayout",
-        docExpansion: "list",
-        filter: true
-      });
-      window.ui = ui;
-    };
-  </script>
+	<script>
+		window.onload = function() {
+			var loading = document.getElementById("loading");
+			try {
+				if (window.SwaggerUIBundle) {
+					var opts = {
+												url: "/swagger.yaml",
+						dom_id: "#swagger-ui",
+						deepLinking: true,
+						docExpansion: "list",
+						filter: true
+					};
+					if (SwaggerUIBundle.presets && SwaggerUIBundle.presets.apis && SwaggerUIBundle.standalonePreset) {
+						opts.presets = [SwaggerUIBundle.presets.apis, SwaggerUIBundle.standalonePreset];
+					}
+					if (SwaggerUIBundle.plugins && SwaggerUIBundle.plugins.DownloadUrl) {
+						opts.plugins = [SwaggerUIBundle.plugins.DownloadUrl];
+					}
+					window.ui = SwaggerUIBundle(opts);
+				} else if (window.SwaggerUI) {
+					var opts2 = {
+						url: "/swagger.yaml",
+						dom_id: "#swagger-ui",
+						deepLinking: true,
+						docExpansion: "list",
+						filter: true
+					};
+					if (SwaggerUI.presets && SwaggerUI.presets.apis && SwaggerUI.standalonePreset) {
+						opts2.presets = [SwaggerUI.presets.apis, SwaggerUI.standalonePreset];
+					}
+					window.ui = SwaggerUI(opts2);
+				} else {
+					throw new Error('Swagger UI bundle not found');
+				}
+
+				if (loading) loading.style.display = "none";
+			} catch (e) {
+				if (loading) loading.innerHTML = "Error loading Swagger UI: " + e.message;
+				else console.error('Error loading Swagger UI:', e);
+			}
+		};
+	</script>
 </body>
 </html>`
